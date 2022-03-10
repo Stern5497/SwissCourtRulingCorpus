@@ -29,7 +29,7 @@ class CriticalityDatasetCreator(DatasetCreator):
         # TODO wait for section splitting in other courts for facts and considerations to be enabled
         self.feature_cols = ['text']  # ['facts', 'considerations', 'text']
 
-    def get_dataset(self, feature_col, lang):
+    def get_dataset(self, feature_col, lang, save_reports):
         engine = self.get_engine(self.db_scrc)
 
         origin_chambers, supreme_court_df = self.query_supreme_court(engine, lang)
