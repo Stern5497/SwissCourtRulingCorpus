@@ -72,7 +72,8 @@ class CriticalityDatasetCreator(DatasetCreator):
         # create engine
         engine = self.get_engine(self.db_scrc)
         # get list of chambers and all bger supreme court rulings (date, origin_chamber)
-        origin_chambers, supreme_court_df = self.query_supreme_court_bger(engine, lang)
+        origin_chambers, supreme_court_bger_df = self.query_supreme_court_bger(engine, lang)
+        supreme_court_bge_df = self.query_supreme_court_bge(engine, lang)
         # create dataframe
         df = pd.DataFrame()
         for origin_chamber in origin_chambers:
@@ -80,10 +81,31 @@ class CriticalityDatasetCreator(DatasetCreator):
             # get all lower court rulings that end up in supreme court
             # origin_chamber_df = self.query_origin_chamber(feature_col, engine, lang, origin_chamber, supreme_court_df)
             # df = df.append(origin_chamber_df)
+            origin_chamber_df = self.query_publication_of_bger(feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df)
             # TODO set labels for supremeCourtRulings
         labels = ['non-critical', 'critical']
 
         return df, labels
+
+    def query_publication_of_bger(self, feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df):
+        self.logger.info(f"Processing origin chamber {origin_chamber}")
+        supreme_court_bger_df = self.clean_df(supreme_court_bger_df, feature_col)
+        # all bger of that chamber
+        bger_origin_chamber_df = supreme_court_bger_df[supreme_court_bger_df.origin_chamber.str.fullmatch(origin_chamber)]
+
+        # Include all bger with matching chamber and date: We have two error sources here:
+        # 1. More than one decision at a given date in the lower court => too many decisions included
+        # 2. Decision referenced from supreme court is not published in the lower court => not enough decisions included
+        date_match = bger_origin_chamber_df.date.astype(str).isin(list(supreme_court_bge_df.origin_date.astype(str)))
+        critical_df = bger_origin_chamber_df[date_match]
+        critical_df['label'] = 'critical'
+        non_critical_df = bger_origin_chamber_df[~date_match]
+        non_critical_df['label'] = 'non-critical'
+
+        self.logger.info(f"# critical decisions: {len(critical_df.index)}")
+        self.logger.info(f"# non-critical decisions: {len(non_critical_df.index)}")
+
+        return critical_df.append(non_critical_df)
 
     # Not used anymore, gives lower court rulings that end up in supreme court
     def query_origin_chamber(self, feature_col, engine, lang, origin_chamber, supreme_court_df):
@@ -114,7 +136,7 @@ class CriticalityDatasetCreator(DatasetCreator):
 
         return critical_df.append(non_critical_df)
 
-    # can be used to get CH_BGer
+    # get all bger
     def query_supreme_court_bger(self, engine, lang):
         origin_chamber = "lower_court::json#>>'{chamber}' AS origin_chamber"
         origin_date = "lower_court::json#>>'{date}' AS origin_date"
@@ -150,11 +172,11 @@ class CriticalityDatasetCreator(DatasetCreator):
             raise ValueError("No supreme court rulings found")
         # get rid of all dublicated cases
         supreme_court_df = supreme_court_df.dropna(subset=['origin_date', 'origin_chamber'])
-        #
+
         origin_chambers = list(supreme_court_df.origin_chamber.unique())
         self.logger.info(f"Found supreme court rulings with references to lower court rulings "
                          f"from chambers {origin_chambers}")
-        return origin_chambers, supreme_court_df
+        return supreme_court_df
 
 
 if __name__ == '__main__':
