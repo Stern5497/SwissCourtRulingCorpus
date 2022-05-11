@@ -5,6 +5,40 @@ import pandas as pd
 from scrc.utils.main_utils import get_config
 
 
+# TODO filter out cases where facts or other input for training model is too short
+# - what is used as input?
+# - what's the input length?
+
+# TODO filter only supreme court cases
+# - are there any constraints? time, legal area, ...
+
+# TODO Criticality definition 1
+# - Filter all cases that were published with abbreviation BGE
+# - Check if one can find matching bger cases for all BGE cases
+# - make sure no case is found twice
+# - define all BGE cases as criticalBGE
+
+# TODO Criticality definition 2
+# - get data set of newspaper occurrences
+# - check if one needs to filter certain cases or if all can be used
+# - get case for a occurrence in newspaper
+# - define all cases with occurrence as criticalNEWS
+
+# TODO Criticality definition 3
+# - get data set of links / references
+# - define all cases that were referenced to as criticalLINK
+
+# TODO Check distribution of data sets
+# - distribution among languages
+# - distribution among legal areas
+# - distribution among cantons
+# - is there bias detectable?
+
+
+
+
+
+
 # TODO filter out cases where lower court is BVGer or a Handelsgericht because there BGer is only 2nd instance!
 #  People go to 2nd instance much more often than to 3rd instance.
 #  In many cases more than 50% of cases go to 2nd instance.
@@ -23,8 +57,13 @@ class CriticalityDatasetCreator(DatasetCreator):
         self.debug = False
         self.split_type = "date-stratified"
         self.dataset_name = "criticality_prediction"
-        # TODO wait for section splitting in other courts for facts and considerations to be enabled
         self.feature_cols = ['full_text']  # ['facts', 'considerations', 'text']
+
+        # self.with_partials = False
+        # self.with_write_off = False
+        # self.with_unification = False
+        # self.with_inadmissible = False
+        # self.make_single_label = True
 
     def get_dataset(self, feature_col, lang, save_reports):
         engine = self.get_engine(self.db_scrc)
@@ -33,6 +72,7 @@ class CriticalityDatasetCreator(DatasetCreator):
 
         df = pd.DataFrame()
         for origin_chamber in origin_chambers:
+        
             origin_chamber_df = self.query_origin_chamber(feature_col, engine, lang, origin_chamber, supreme_court_df)
             df = df.append(origin_chamber_df)
         labels = ['non-critical', 'critical']
