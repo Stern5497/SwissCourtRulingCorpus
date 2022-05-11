@@ -69,6 +69,7 @@ class CriticalityDatasetCreator(DatasetCreator):
         # self.make_single_label = True
 
     def get_dataset(self, feature_col, lang, save_reports):
+        # todo test class, what is reallly happening?
         # create engine
         engine = self.get_engine(self.db_scrc)
         # get list of chambers and all bger supreme court rulings (date, origin_chamber)
@@ -82,21 +83,20 @@ class CriticalityDatasetCreator(DatasetCreator):
             # origin_chamber_df = self.query_origin_chamber(feature_col, engine, lang, origin_chamber, supreme_court_df)
             # df = df.append(origin_chamber_df)
             origin_chamber_df = self.query_publication_of_bger(feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df)
-            # TODO set labels for supremeCourtRulings
         labels = ['non-critical', 'critical']
 
         return df, labels
 
     def query_publication_of_bger(self, feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df):
         self.logger.info(f"Processing origin chamber {origin_chamber}")
-        supreme_court_bger_df = self.clean_df(supreme_court_bger_df, feature_col)
+        # supreme_court_bger_df = self.clean_df(supreme_court_bger_df, feature_col)
         # all bger of that chamber
         bger_origin_chamber_df = supreme_court_bger_df[supreme_court_bger_df.origin_chamber.str.fullmatch(origin_chamber)]
 
         # Include all bger with matching chamber and date: We have two error sources here:
         # 1. More than one decision at a given date in the lower court => too many decisions included
         # 2. Decision referenced from supreme court is not published in the lower court => not enough decisions included
-        date_match = bger_origin_chamber_df.date.astype(str).isin(list(supreme_court_bge_df.origin_date.astype(str)))
+        date_match = bger_origin_chamber_df.origin_date.astype(str).isin(list(supreme_court_bge_df.origin_date.astype(str)))
         critical_df = bger_origin_chamber_df[date_match]
         critical_df['label'] = 'critical'
         non_critical_df = bger_origin_chamber_df[~date_match]
