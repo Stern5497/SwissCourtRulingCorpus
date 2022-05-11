@@ -69,18 +69,23 @@ class CriticalityDatasetCreator(DatasetCreator):
         # self.make_single_label = True
 
     def get_dataset(self, feature_col, lang, save_reports):
+        # create engine
         engine = self.get_engine(self.db_scrc)
-
-        origin_chambers, supreme_court_df = self.query_supreme_court(engine, lang)
-
+        # get list of chambers and all bger supreme court rulings (date, origin_chamber)
+        origin_chambers, supreme_court_df = self.query_supreme_court_bger(engine, lang)
+        # create dataframe
         df = pd.DataFrame()
         for origin_chamber in origin_chambers:
-            origin_chamber_df = self.query_origin_chamber(feature_col, engine, lang, origin_chamber, supreme_court_df)
-            df = df.append(origin_chamber_df)
+            self.logger.info(f"iterating through all origin chambers to compare which bger is an bge")
+            # get all lower court rulings that end up in supreme court
+            # origin_chamber_df = self.query_origin_chamber(feature_col, engine, lang, origin_chamber, supreme_court_df)
+            # df = df.append(origin_chamber_df)
+            # TODO set labels for supremeCourtRulings
         labels = ['non-critical', 'critical']
 
         return df, labels
 
+    # Not used anymore, gives lower court rulings that end up in supreme court
     def query_origin_chamber(self, feature_col, engine, lang, origin_chamber, supreme_court_df):
         self.logger.info(f"Processing origin chamber {origin_chamber}")
         columns = ['id', 'chamber', 'date', 'extract(year from date) as year', feature_col]
@@ -109,7 +114,8 @@ class CriticalityDatasetCreator(DatasetCreator):
 
         return critical_df.append(non_critical_df)
 
-    def query_supreme_court(self, engine, lang):
+    # can be used to get CH_BGer
+    def query_supreme_court_bger(self, engine, lang):
         origin_chamber = "lower_court::json#>>'{chamber}' AS origin_chamber"
         origin_date = "lower_court::json#>>'{date}' AS origin_date"
         origin_file_number = "lower_court::json#>>'{file_number}' AS origin_file_number"
@@ -121,7 +127,30 @@ class CriticalityDatasetCreator(DatasetCreator):
                                                 chunksize=self.get_chunksize()))
         except StopIteration:
             raise ValueError("No supreme court rulings found")
+        # get rid of all dublicated cases
         supreme_court_df = supreme_court_df.dropna(subset=['origin_date', 'origin_chamber'])
+        #
+        origin_chambers = list(supreme_court_df.origin_chamber.unique())
+        self.logger.info(f"Found supreme court rulings with references to lower court rulings "
+                         f"from chambers {origin_chambers}")
+        return origin_chambers, supreme_court_df
+
+    # get all bge
+    def query_supreme_court_bge(self, engine, lang):
+        origin_chamber = "lower_court::json#>>'{chamber}' AS origin_chamber"
+        origin_date = "lower_court::json#>>'{date}' AS origin_date"
+        origin_file_number = "lower_court::json#>>'{file_number}' AS origin_file_number"
+        try:
+            supreme_court_df = next(self.select(engine, lang,
+                                                columns=f"{origin_chamber}, {origin_date}, {origin_file_number}",
+                                                where="court = 'CH_BGE'",
+                                                order_by="origin_date",
+                                                chunksize=self.get_chunksize()))
+        except StopIteration:
+            raise ValueError("No supreme court rulings found")
+        # get rid of all dublicated cases
+        supreme_court_df = supreme_court_df.dropna(subset=['origin_date', 'origin_chamber'])
+        #
         origin_chambers = list(supreme_court_df.origin_chamber.unique())
         self.logger.info(f"Found supreme court rulings with references to lower court rulings "
                          f"from chambers {origin_chambers}")
