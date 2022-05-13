@@ -1,11 +1,32 @@
-import configparser
-
-from root import ROOT_DIR
 from scrc.dataset_creation.dataset_creator import DatasetCreator
 from scrc.utils.log_utils import get_logger
 import pandas as pd
 
 from scrc.utils.main_utils import get_config
+
+"""
+Datasets to be created:
+- BGE
+    Contains all BGE since ?
+    cols = language, canton, date, file-number, text
+    
+- BGer
+    contains all bger since 
+    cols = language, canton, date, file-number, text
+    
+Set Labels
+    - criticality based on BGE
+        - filter all bger that have the same date
+        - compare text to get the matching bger for an bge
+        - check what file number are used
+    - criticality based on ruling citations
+        - set label according to score from doc2doc_ir
+        - critical if score is >= ... 
+    - criticality based on published "Medienmitteilungen"
+        
+
+
+"""
 
 
 # TODO filter out cases where facts or other input for training model is too short
@@ -38,15 +59,12 @@ from scrc.utils.main_utils import get_config
 # - is there bias detectable?
 
 
-
-
-
-
 # TODO filter out cases where lower court is BVGer or a Handelsgericht because there BGer is only 2nd instance!
 #  People go to 2nd instance much more often than to 3rd instance.
 #  In many cases more than 50% of cases go to 2nd instance.
 #  Probably less than 30% of cases go to 3rd instance. ==> Ask Daniel Kettiger
 # TODO calculate this: Geschäftsberichte von grossen Gerichten holen und vergleichen mit Anzahl Bundesgerichten
+
 
 class CriticalityDatasetCreator(DatasetCreator):
     """
@@ -57,7 +75,7 @@ class CriticalityDatasetCreator(DatasetCreator):
         super().__init__(config)
         self.logger = get_logger(__name__)
 
-        self.debug = False
+        self.debug = True
         self.split_type = "date-stratified"
         self.dataset_name = "criticality_prediction"
         self.feature_cols = ['full_text']  # ['facts', 'considerations', 'text']
@@ -68,13 +86,16 @@ class CriticalityDatasetCreator(DatasetCreator):
         # self.with_inadmissible = False
         # self.make_single_label = True
 
+
+
     def get_dataset(self, feature_col, lang, save_reports):
-        # todo test class, what is reallly happening?
         # create engine
         engine = self.get_engine(self.db_scrc)
         # get list of chambers and all bger supreme court rulings (date, origin_chamber)
-        origin_chambers, supreme_court_bger_df = self.query_supreme_court_bger(engine, lang)
         supreme_court_bge_df = self.query_supreme_court_bge(engine, lang)
+
+        origin_chambers, supreme_court_bger_df = self.query_supreme_court_bger(engine, lang)
+
         # create dataframe
         df = pd.DataFrame()
         for origin_chamber in origin_chambers:
@@ -92,6 +113,7 @@ class CriticalityDatasetCreator(DatasetCreator):
         # supreme_court_bger_df = self.clean_df(supreme_court_bger_df, feature_col)
         # all bger of that chamber
         bger_origin_chamber_df = supreme_court_bger_df[supreme_court_bger_df.origin_chamber.str.fullmatch(origin_chamber)]
+
 
         # Include all bger with matching chamber and date: We have two error sources here:
         # 1. More than one decision at a given date in the lower court => too many decisions included
@@ -159,23 +181,19 @@ class CriticalityDatasetCreator(DatasetCreator):
 
     # get all bge
     def query_supreme_court_bge(self, engine, lang):
-        origin_chamber = "lower_court::json#>>'{chamber}' AS origin_chamber"
-        origin_date = "lower_court::json#>>'{date}' AS origin_date"
-        origin_file_number = "lower_court::json#>>'{file_number}' AS origin_file_number"
         try:
             supreme_court_df = next(self.select(engine, lang,
-                                                columns=f"{origin_chamber}, {origin_date}, {origin_file_number}",
-                                                where="court = 'CH_BGE'",
-                                                order_by="origin_date",
+                                                columns="language, canton, date, file_number, html_url, text",
+                                                where="spider = 'CH_BGE'",
+                                                order_by="date",
                                                 chunksize=self.get_chunksize()))
         except StopIteration:
             raise ValueError("No supreme court rulings found")
-        # get rid of all dublicated cases
-        supreme_court_df = supreme_court_df.dropna(subset=['origin_date', 'origin_chamber'])
+        # check if there are dublicated cases
+        # supreme_court_df = supreme_court_df.dropna(subset=['origin_date', 'origin_chamber'])
 
-        origin_chambers = list(supreme_court_df.origin_chamber.unique())
         self.logger.info(f"Found supreme court rulings with references to lower court rulings "
-                         f"from chambers {origin_chambers}")
+                         f"from chambers ")
         return supreme_court_df
 
 
