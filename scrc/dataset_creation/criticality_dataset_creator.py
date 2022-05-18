@@ -57,15 +57,6 @@ Set Labels
 # - distribution among cantons
 # - is there bias detectable?
 
-
-
-
-
-
-# TODO filter out cases where lower court is BVGer or a Handelsgericht because there BGer is only 2nd instance!
-#  People go to 2nd instance much more often than to 3rd instance.
-#  In many cases more than 50% of cases go to 2nd instance.
-#  Probably less than 30% of cases go to 3rd instance. ==> Ask Daniel Kettiger
 # TODO calculate this: Geschäftsberichte von grossen Gerichten holen und vergleichen mit Anzahl Bundesgerichten
 
 class CriticalityDatasetCreator(DatasetCreator):
@@ -79,7 +70,8 @@ class CriticalityDatasetCreator(DatasetCreator):
 
         self.debug = False
         self.split_type = "date-stratified"
-        self.dataset_name = "criticality_prediction"
+        # TODO why is it not working if I use criticality_prediction as name?
+        self.dataset_name = "criticality_prediction_1"
         self.feature_cols = ['text']  # ['facts', 'considerations', 'text']
 
         # self.with_partials = False
@@ -89,68 +81,37 @@ class CriticalityDatasetCreator(DatasetCreator):
         # self.make_single_label = True
 
     def get_dataset(self, feature_col, lang, save_reports):
-        # todo test class, what is reallly happening?
+
         # create engine
         engine = self.get_engine(self.db_scrc)
 
-        """
-        # get list of chambers and all bger supreme court rulings (date, origin_chamber)
-        origin_chambers, supreme_court_bger_df = self.query_supreme_court_bger(engine, lang)
-        supreme_court_bge_df = self.query_supreme_court_bge(engine, lang)
-        # create dataframe
-        df = pd.DataFrame()
-        for origin_chamber in origin_chambers:
-            self.logger.info(f"iterating through all origin chambers to compare which bger is an bge")
-            # get all lower court rulings that end up in supreme court
-            # origin_chamber_df = self.query_origin_chamber(feature_col, engine, lang, origin_chamber, supreme_court_df)
-            # df = df.append(origin_chamber_df)
-            origin_chamber_df = self.query_publication_of_bger(feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df)
+        # get bge rulings
+        bge_df = self.query_bge(feature_col, engine, lang)
+
+        # get bger rulings
+        bger_df = self.query_bger(feature_col, engine, lang)
+
+        #TODO change
+        bger_criticality_df = bger_df
+
         labels = ['non-critical', 'critical']
-        return df, labels
-        """
+        return bger_criticality_df, labels
 
-    def query_publication_of_bger(self, feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df):
-        self.logger.info(f"Processing origin chamber {origin_chamber}")
-        # supreme_court_bger_df = self.clean_df(supreme_court_bger_df, feature_col)
-        # all bger of that chamber
-        bger_origin_chamber_df = supreme_court_bger_df[supreme_court_bger_df.origin_chamber.str.fullmatch(origin_chamber)]
+    # set criticality labels
+    def query_bge_criticality(self, bger_df, bge_df):
+        self.logger.info(f"Processing labeling of bge_criticality")
 
-        # Include all bger with matching chamber and date: We have two error sources here:
-        # 1. More than one decision at a given date in the lower court => too many decisions included
-        # 2. Decision referenced from supreme court is not published in the lower court => not enough decisions included
-        date_match = bger_origin_chamber_df.origin_date.astype(str).isin(list(supreme_court_bge_df.origin_date.astype(str)))
-        critical_df = bger_origin_chamber_df[date_match]
+        # Include all bger rulings whose file_number can be found in the header of a bge
+        # It's not enough no compare date and chamber, there are multiple matching cases
+        # There exist around 12'000 rulings with date = 1.1.2020
+        # error sources:
+        # 1. Regex cannot find correct file number in header
+        # 2. languages are different -> different datasets #todo is that correct?
+        #TODO create method comparing bger file numbers to found regex expression in bge
+        date_match = bger_df.date.astype(str).isin(list(bge_df.origin_date.astype(str)))
+        critical_df = bger_df[date_match]
         critical_df['label'] = 'critical'
-        non_critical_df = bger_origin_chamber_df[~date_match]
-        non_critical_df['label'] = 'non-critical'
-
-        self.logger.info(f"# critical decisions: {len(critical_df.index)}")
-        self.logger.info(f"# non-critical decisions: {len(non_critical_df.index)}")
-
-        return critical_df.append(non_critical_df)
-
-    # Not used anymore, gives lower court rulings that end up in supreme court
-    def query_origin_chamber(self, feature_col, engine, lang, origin_chamber, supreme_court_df):
-        self.logger.info(f"Processing origin chamber {origin_chamber}")
-        columns = ['id', 'chamber', 'date', 'extract(year from date) as year', feature_col]
-        try:
-            lower_court_df = next(self.select(engine, lang,
-                                              columns=",".join(columns),
-                                              where=f"chamber = '{origin_chamber}'",
-                                              order_by="date",
-                                              chunksize=self.get_chunksize()))
-            lower_court_df = self.clean_df(lower_court_df, feature_col)
-        except StopIteration:
-            self.logger.error(f"No lower court rulings found for chamber {origin_chamber}. Returning empty dataframe.")
-            return pd.DataFrame()
-        # Include all decisions from the lower court with matching chamber and date: We have two error sources here:
-        # 1. More than one decision at a given date in the lower court => too many decisions included
-        # 2. Decision referenced from supreme court is not published in the lower court => not enough decisions included
-        sc_origin_chamber_df = supreme_court_df[supreme_court_df.origin_chamber.str.fullmatch(origin_chamber)]
-        date_match = lower_court_df.date.astype(str).isin(list(sc_origin_chamber_df.origin_date.astype(str)))
-        critical_df = lower_court_df[date_match]
-        critical_df['label'] = 'critical'
-        non_critical_df = lower_court_df[~date_match]
+        non_critical_df = bger_df[~date_match]
         non_critical_df['label'] = 'non-critical'
 
         self.logger.info(f"# critical decisions: {len(critical_df.index)}")
@@ -159,46 +120,40 @@ class CriticalityDatasetCreator(DatasetCreator):
         return critical_df.append(non_critical_df)
 
     # get all bger
-    def query_supreme_court_bger(self, engine, lang):
-        origin_chamber = "lower_court::json#>>'{chamber}' AS origin_chamber"
-        origin_date = "lower_court::json#>>'{date}' AS origin_date"
-        origin_file_number = "lower_court::json#>>'{file_number}' AS origin_file_number"
+    def query_bger(self, feature_col, engine, lang):
+        # TODO which columns are needed
+        columns = ['id', 'chamber', 'date', 'extract(year from date) as year', f'{feature_col}', 'file_name', 'file_number']
         try:
-            supreme_court_df = next(self.select(engine, lang,
-                                                columns=f"{origin_chamber}, {origin_date}, {origin_file_number}",
-                                                where="court = 'CH_BGer'",
-                                                order_by="origin_date",
-                                                chunksize=self.get_chunksize()))
+            bger_df = next(self.select(engine, lang,
+                                      columns=",".join(columns),
+                                      where="court = 'CH_BGer'",
+                                      order_by="date",
+                                      chunksize=self.get_chunksize()))
         except StopIteration:
-            raise ValueError("No supreme court rulings found")
+            raise ValueError("No bger rulings found")
         # get rid of all dublicated cases
-        supreme_court_df = supreme_court_df.dropna(subset=['origin_date', 'origin_chamber'])
-        #
-        origin_chambers = list(supreme_court_df.origin_chamber.unique())
-        self.logger.info(f"Found supreme court rulings with references to lower court rulings "
-                         f"from chambers {origin_chambers}")
-        return origin_chambers, supreme_court_df
+        # TODO improve this
+        bger_df = bger_df.dropna(subset=['date', 'id'])
+        self.logger.info(f"Found {len(bger_df.index)} supreme bger rulings")
+        return bger_df
 
     # get all bge
-    def query_supreme_court_bge(self, engine, lang):
-        origin_chamber = "lower_court::json#>>'{chamber}' AS origin_chamber"
-        origin_date = "lower_court::json#>>'{date}' AS origin_date"
-        origin_file_number = "lower_court::json#>>'{file_number}' AS origin_file_number"
+    def query_bge(self, feature_col, engine, lang):
+        # TODO which columns are needed
+        columns = ['id', 'chamber', 'date', 'extract(year from date) as year', f'{feature_col}', 'file_name', 'file_number']
         try:
-            supreme_court_df = next(self.select(engine, lang,
-                                                columns=f"{origin_chamber}, {origin_date}, {origin_file_number}",
+            bge_df = next(self.select(engine, lang,
+                                                columns=",".join(columns),
                                                 where="court = 'CH_BGE'",
-                                                order_by="origin_date",
+                                                order_by="date",
                                                 chunksize=self.get_chunksize()))
         except StopIteration:
-            raise ValueError("No supreme court rulings found")
+            raise ValueError("No bge rulings found")
         # get rid of all dublicated cases
-        supreme_court_df = supreme_court_df.dropna(subset=['origin_date', 'origin_chamber'])
-
-        origin_chambers = list(supreme_court_df.origin_chamber.unique())
-        self.logger.info(f"Found supreme court rulings with references to lower court rulings "
-                         f"from chambers {origin_chambers}")
-        return supreme_court_df
+        # TODO improve this
+        bge_df = bge_df.dropna(subset=['date', 'id'])
+        self.logger.info(f"Found {len(bge_df.index)} supreme bge rulings")
+        return bge_df
 
 
 if __name__ == '__main__':

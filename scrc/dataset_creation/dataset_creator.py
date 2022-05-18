@@ -175,9 +175,10 @@ class DatasetCreator(AbstractPreprocessor):
                     lang_folder = self.create_dir(feature_col_folder, lang)
                     df, labels = self.get_dataset(feature_col, lang, save_reports)
                     df = df.sample(frac=1).reset_index(drop=True)  # shuffle dataset to make sampling easier
-                    splits = self.save_dataset(df, labels, lang_folder, self.split_type,
-                                               sub_datasets=sub_datasets, kaggle=kaggle, save_reports=save_reports)
-                    lang_splits[lang] = splits
+                    # TODO save dataset
+                    # splits = self.save_dataset(df, labels, lang_folder, self.split_type,
+                    #                          sub_datasets=sub_datasets, kaggle=kaggle, save_reports=save_reports)
+                    # lang_splits[lang] = splits
 
                 if huggingface:
                     self.logger.info("Generating huggingface dataset")
