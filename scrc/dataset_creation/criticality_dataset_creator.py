@@ -4,6 +4,29 @@ import pandas as pd
 
 from scrc.utils.main_utils import get_config
 
+"""
+Datasets to be created:
+- BGE
+    Contains all BGE since ?
+    cols = language, canton, date, file-number, text
+
+- BGer
+    contains all bger since 
+    cols = language, canton, date, file-number, text
+
+Set Labels
+    - criticality based on BGE
+        - filter all bger that have the same date
+        - compare text to get the matching bger for an bge
+        - check what file number are used
+    - criticality based on ruling citations
+        - set label according to score from doc2doc_ir
+        - critical if score is >= ... 
+    - criticality based on published "Medienmitteilungen"
+
+
+
+"""
 
 # TODO filter out cases where facts or other input for training model is too short
 # - what is used as input?
@@ -57,7 +80,7 @@ class CriticalityDatasetCreator(DatasetCreator):
         self.debug = False
         self.split_type = "date-stratified"
         self.dataset_name = "criticality_prediction"
-        self.feature_cols = ['full_text']  # ['facts', 'considerations', 'text']
+        self.feature_cols = ['text']  # ['facts', 'considerations', 'text']
 
         # self.with_partials = False
         # self.with_write_off = False
@@ -69,6 +92,8 @@ class CriticalityDatasetCreator(DatasetCreator):
         # todo test class, what is reallly happening?
         # create engine
         engine = self.get_engine(self.db_scrc)
+
+        """
         # get list of chambers and all bger supreme court rulings (date, origin_chamber)
         origin_chambers, supreme_court_bger_df = self.query_supreme_court_bger(engine, lang)
         supreme_court_bge_df = self.query_supreme_court_bge(engine, lang)
@@ -81,8 +106,8 @@ class CriticalityDatasetCreator(DatasetCreator):
             # df = df.append(origin_chamber_df)
             origin_chamber_df = self.query_publication_of_bger(feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df)
         labels = ['non-critical', 'critical']
-
         return df, labels
+        """
 
     def query_publication_of_bger(self, feature_col, engine, lang, origin_chamber, supreme_court_bger_df, supreme_court_bge_df):
         self.logger.info(f"Processing origin chamber {origin_chamber}")
