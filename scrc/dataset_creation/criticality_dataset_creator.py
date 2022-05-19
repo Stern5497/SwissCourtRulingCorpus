@@ -107,7 +107,9 @@ class CriticalityDatasetCreator(DatasetCreator):
         # error sources:
         # 1. Regex cannot find correct file number in header
         # 2. languages are different -> different datasets #todo is that correct?
+
         #TODO create method comparing bger file numbers to found regex expression in bge
+
         date_match = bger_df.date.astype(str).isin(list(bge_df.origin_date.astype(str)))
         critical_df = bger_df[date_match]
         critical_df['label'] = 'critical'
@@ -118,6 +120,10 @@ class CriticalityDatasetCreator(DatasetCreator):
         self.logger.info(f"# non-critical decisions: {len(non_critical_df.index)}")
 
         return critical_df.append(non_critical_df)
+
+    #regex method to read bger file_number in header of BGE
+    #def get_bger_filenumber_in_bge_header(self):
+
 
     # get all bger
     def query_bger(self, feature_col, engine, lang):
