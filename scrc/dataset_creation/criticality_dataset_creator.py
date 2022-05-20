@@ -109,17 +109,22 @@ class CriticalityDatasetCreator(DatasetCreator):
         # 2. languages are different -> different datasets #todo is that correct?
 
         #TODO create method comparing bger file numbers to found regex expression in bge
-
-        date_match = bger_df.date.astype(str).isin(list(bge_df.origin_date.astype(str)))
-        critical_df = bger_df[date_match]
+        """
+        file_number_match = bger_df.file_number.astype(str).isin(list(bge_df.bge_reference.astype(str)))
+        file_number_match_df = bger_df[file_number_match]       
+        critical_df = bger_df[file_number_match]
         critical_df['label'] = 'critical'
-        non_critical_df = bger_df[~date_match]
+        non_critical_df = bger_df[~file_number_match]
         non_critical_df['label'] = 'non-critical'
-
+        
         self.logger.info(f"# critical decisions: {len(critical_df.index)}")
         self.logger.info(f"# non-critical decisions: {len(non_critical_df.index)}")
-
+        
         return critical_df.append(non_critical_df)
+        """
+
+
+
 
     #regex method to read bger file_number in header of BGE
     #def get_bger_filenumber_in_bge_header(self):
