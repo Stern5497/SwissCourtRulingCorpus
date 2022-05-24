@@ -1,11 +1,9 @@
-from pathlib import Path
-from pprint import pprint
-from typing import Any, Optional
-from scrc.enums.citation_type import CitationType
+import re
 import json
-import regex
-
+from typing import Dict, Optional
 from root import ROOT_DIR
+from scrc.enums.section import Section
+
 
 """
 This file is used to extract citations from decisions sorted by spiders.
@@ -14,29 +12,28 @@ Overview of spiders still todo: https://docs.google.com/spreadsheets/d/1FZmeUEW8
 """
 
 
-def XX_SPIDER(soup: Any, namespace: dict) -> Optional[dict]:
+def XX_SPIDER(sections: Dict[Section, str], namespace: dict) -> Optional[str]:
     # This is an example spider. Just copy this method and adjust the method name and the code to add your new spider.
     pass
 
 
-def CH_BGer(soup: Any, namespace: dict) -> Optional[dict]:
+def CH_BGE(sections: Dict[Section, str], namespace: dict) -> Optional[str]:
     """
-    :param soup:        the soup parsed by bs4
+    Extract the reference to the corresponding bger file in bge
+    :param sections:    the dict containing the sections per section key
     :param namespace:   the namespace containing some metadata of the court decision
-    :return:            the sections dict, None if not in German
+    :return:            the reference as string
     """
-    law_key = 'artref'
-    bge_key = 'bgeref_id'
 
-    laws, rulings = [], []
+    header = sections[Section.HEADER]
+    citation_regexes = json.loads((ROOT_DIR / 'legal_info' / 'bge_origin_bger_reference_citation.json').read_text())
 
-    for law in soup.find_all("span", class_=law_key):
-        if law.string:  # make sure it is not empty or None
-            laws.append({"text": law.string})
+    def get_combined_regexes(regex_dict):
+        return re.compile("|".join([entry["regex"] for entry in regex_dict if entry["regex"]]))
 
-    for bge in soup.find_all("a", class_=bge_key):
-        if bge.string:  # make sure it is not empty or None
-            rulings.append({"type": "bge", "url": bge['href'], "text": bge.string})
+    bge_reference_pattern = get_combined_regexes(citation_regexes['ruling']['bge_reference'])
 
-    return {CitationType.LAW: laws, CitationType.RULING: rulings}
+    bge_reference = re.search(bge_reference_pattern, header)
+
+    return str(bge_reference)
 
