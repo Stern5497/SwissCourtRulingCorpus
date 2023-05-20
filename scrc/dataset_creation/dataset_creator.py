@@ -198,7 +198,7 @@ class DatasetCreator(AbstractPreprocessor):
         """
         Load all bge cases and store in available_bges
         """
-        ruling_dataset = load_dataset('rcds/swiss_rulings', split='train')
+        ruling_dataset = load_dataset('rcds/swiss_leading_decisions', split='train')
         decision_df = pd.DataFrame(ruling_dataset)
         self.logger.info(f"BGE: There are {len(decision_df.index)} in db (also old or not referenced included).")
 
